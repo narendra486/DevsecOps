@@ -12,7 +12,7 @@ pipeline {
                 echo 'Pulling latest code from GitHub...'
                 git url: 'git@github.com:narendra486/DevsecOps.git', 
                     credentialsId: 'github-ssh', 
-                    branch: 'main'
+                    branch: 'master'
             }
         }
         
