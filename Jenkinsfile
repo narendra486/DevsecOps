@@ -2,6 +2,37 @@ pipeline {
   agent any
 
   stages {
+    stage('Start SonarQube') {
+      steps {
+        echo "🚦 Starting SonarQube Community Edition on port 1338..."
+        script {
+          def running = sh(script: "docker ps --format '{{.Names}}' | grep -w sonarqube || true", returnStdout: true).trim()
+          if (!running) {
+            sh 'docker compose up -d sonarqube'
+            echo "SonarQube container started. Waiting for it to become healthy..."
+            sleep 30
+          } else {
+            echo "SonarQube container already running."
+          }
+          // Check SonarQube health
+          def retries = 10
+          def healthy = false
+          for (int i = 1; i <= retries; i++) {
+            def code = sh(script: "curl -L -o /dev/null -s -w '%{http_code}' http://localhost:1338", returnStdout: true).trim()
+            echo "SonarQube HTTP code attempt ${i}: ${code}"
+            if (code == '200') {
+              healthy = true
+              echo "SonarQube is up!"
+              break
+            }
+            sleep 10
+          }
+          if (!healthy) {
+            echo "Warning: SonarQube did not become healthy in time, but pipeline will continue."
+          }
+        }
+      }
+    }
     stage('Checkout') {
       steps {
         echo "✅ Checking out repository"
