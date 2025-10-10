@@ -27,7 +27,7 @@ pipeline {
           def retries = 5
           def success = false
           for (int i = 0; i < retries; i++) {
-            def code = sh(script: "curl -L -o /dev/null -s -w '%{http_code}' http://127.0.0.1:1337", returnStdout: true).trim()
+            def code = sh(script: "curl -L -o /dev/null -s -w '%{http_code}' http://167.86.125.122:1337", returnStdout: true).trim()
             echo "HTTP code: ${code} (attempt ${i + 1}/${retries})"
             if (code == '200' || code == '302') {
               echo "DVWA is up (HTTP ${code})"
@@ -35,7 +35,7 @@ pipeline {
               break
             }
             echo "Still waiting for DVWA..."
-            sleep 15
+            sleep 30
           }
           if (!success) {
             error "❌ DVWA failed to start in time after ${retries} attempts."
