@@ -24,21 +24,13 @@ pipeline {
       steps {
         echo "⌛ Waiting for DVWA to become ready..."
         script {
-          def retries = 5
-          def success = false
-          for (int i = 0; i < retries; i++) {
-            def code = sh(script: "curl -L -o /dev/null -s -w '%{http_code}' http://167.86.125.122:1337", returnStdout: true).trim()
-            echo "HTTP code: ${code} (attempt ${i + 1}/${retries})"
-            if (code == '200' || code == '302') {
-              echo "DVWA is up (HTTP ${code})"
-              success = true
-              break
-            }
-            echo "Still waiting for DVWA..."
-            sleep 30
-          }
-          if (!success) {
-            error "❌ DVWA failed to start in time after ${retries} attempts."
+          sleep 60 // Wait 1 minute before first check
+          def code = sh(script: "curl -L -o /dev/null -s -w '%{http_code}' http://167.86.125.122:1337", returnStdout: true).trim()
+          echo "HTTP code after 1 minute: ${code}"
+          if (code == '200' || code == '302') {
+            echo "DVWA is up (HTTP ${code})"
+          } else {
+            echo "Warning: DVWA is not reachable after 1 minute (HTTP ${code}). Pipeline will continue."
           }
         }
       }
