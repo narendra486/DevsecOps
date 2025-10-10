@@ -43,11 +43,16 @@ pipeline {
     stage('Build DVWA') {
       steps {
         echo "🚀 Starting DVWA container"
-        sh '''
-          docker stop dvwa_test_instance || true
-          docker rm dvwa_test_instance || true
-          docker run -d --name dvwa_test_instance -p 1337:80 vulnerables/web-dvwa
-        '''
+        script {
+          def running = sh(script: "docker ps --format '{{.Names}}' | grep -w dvwa_test_instance || true", returnStdout: true).trim()
+          if (running) {
+            echo "DVWA container is already running."
+          } else {
+            echo "DVWA container not running. Attempting to start..."
+            sh 'docker rm dvwa_test_instance || true'
+            sh 'docker run -d --name dvwa_test_instance -p 1337:80 vulnerables/web-dvwa'
+          }
+        }
       }
     }
 
