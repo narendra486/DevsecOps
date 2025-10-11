@@ -2,7 +2,7 @@ pipeline {
   agent any
 
   environment {
-    // Assume SonarQube token and server configured globally, no need to redeclare here
+    SONAR_HOST_URL = "http://167.86.125.122:1338"
   }
 
   stages {
