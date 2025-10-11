@@ -1,11 +1,3 @@
-# ----------------------------
-# 6️⃣ Install SonarQube Scanner CLI
-# ----------------------------
-RUN apt-get update && apt-get install -y unzip wget openjdk-17-jre && \
-    wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip -O /tmp/sonar-scanner.zip && \
-    unzip /tmp/sonar-scanner.zip -d /opt && \
-    ln -s /opt/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner /usr/local/bin/sonar-scanner && \
-    rm /tmp/sonar-scanner.zip
 # Use official Jenkins LTS image with JDK 17
 FROM jenkins/jenkins:lts-jdk17
 
@@ -21,12 +13,15 @@ RUN apt-get update && \
     ca-certificates \
     curl \
     gnupg2 \
-    tini -y \ 
+    tini \
     software-properties-common \
-    lsb-release && \
+    lsb-release \
+    unzip \
+    wget \
+    openjdk-17-jre \
+    python3 \
+    python3-pip && \
     rm -rf /var/lib/apt/lists/*
-
-
 
 # ----------------------------
 # 2️⃣ Install Docker CLI & Compose
@@ -63,13 +58,18 @@ RUN mkdir -p /var/jenkins_home/.ssh && \
     chown jenkins:jenkins /var/jenkins_home/.ssh/known_hosts && \
     chmod 644 /var/jenkins_home/.ssh/known_hosts
 
-# Optionally, disable strict host key checking (not recommended for production):
-# ENV GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+# ----------------------------
+# 6️⃣ Install SonarQube Scanner CLI
+# ----------------------------
+RUN wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-5.0.1.3006-linux.zip -O /tmp/sonar-scanner.zip && \
+    unzip /tmp/sonar-scanner.zip -d /opt && \
+    ln -s /opt/sonar-scanner-5.0.1.3006-linux/bin/sonar-scanner /usr/local/bin/sonar-scanner && \
+    rm /tmp/sonar-scanner.zip
+
 # ----------------------------
 # 7️⃣ Add DevSecOps Tools (Trivy, Hadolint, Semgrep)
 # ----------------------------
-RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/* && \
-    curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin && \
+RUN curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin && \
     curl -sL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 -o /usr/local/bin/hadolint && \
     chmod +x /usr/local/bin/hadolint && \
     pip3 install --break-system-packages semgrep
@@ -80,10 +80,6 @@ RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/
 RUN chown -R jenkins:jenkins /var/run && \
     chmod -R 755 /var/run
 
-# 8.1️⃣ (Recommended) When running the container, mount the Docker socket:
-#   -v /var/run/docker.sock:/var/run/docker.sock
-# This allows Jenkins jobs to use Docker CLI on the host.
-
 # ----------------------------
 # 9️⃣ Switch back to Jenkins user
 # ----------------------------
@@ -92,13 +88,3 @@ USER jenkins
 # Expose Jenkins ports
 EXPOSE 8080
 EXPOSE 50000
-
-
-# Use the default CMD from the Jenkins base image (no override)
-
-
-# Example run command:
-# docker run -d \
-#   -p 8080:8080 -p 50000:50000 \
-#   -v /var/run/docker.sock:/var/run/docker.sock \
-#   --name jenkins-dev-container jenkins-dev
