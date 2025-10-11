@@ -3,6 +3,8 @@ pipeline {
 
   environment {
     SONAR_HOST_URL = "http://167.86.125.122:1338"
+    SNYK_TOKEN = credentials('snyk-token-id')
+    DEPTRACK_API_KEY = credentials('dependencytrack-api-key')
   }
 
   stages {
@@ -21,7 +23,7 @@ pipeline {
           def retries = 10
           def healthy = false
           for (int i = 1; i <= retries; i++) {
-            def code = sh(script: "curl -L -o /dev/null -s -w '%{http_code}' http://167.86.125.122:1338", returnStdout: true).trim()
+            def code = sh(script: "curl -L -o /dev/null -s -w '%{http_code}' ${SONAR_HOST_URL}", returnStdout: true).trim()
             echo "SonarQube HTTP code attempt ${i}: ${code}"
             if (code == '200') {
               healthy = true
@@ -48,7 +50,7 @@ pipeline {
       steps {
         echo "🔍 Running SonarQube scan..."
         withSonarQubeEnv('SonarQube Server') {
-          sh 'sonar-scanner -Dsonar.projectKey=myProjectKey -Dsonar.sources=./ -Dsonar.host.url=http://167.86.125.122:1338'
+          sh "sonar-scanner -Dsonar.projectKey=myProjectKey -Dsonar.sources=./ -Dsonar.host.url=${SONAR_HOST_URL}"
         }
       }
     }
@@ -72,6 +74,77 @@ pipeline {
       }
     }
 
+    stage('OWASP Dependency-Check') {
+      steps {
+        echo "🔍 Running OWASP Dependency-Check SCA scan..."
+        sh '''
+          dependency-check.sh --project MyProjectName --scan . --format HTML --out dependency-check-report
+        '''
+        archiveArtifacts artifacts: 'dependency-check-report/*.html'
+      }
+    }
+
+    stage('Start Dependency-Track') {
+      steps {
+        script {
+          def running = sh(script: "docker ps --format '{{.Names}}' | grep -w dependency-track || true", returnStdout: true).trim()
+          if (!running) {
+            sh 'docker run -d --name dependency-track -p 1339:8080 -e JAVA_OPTS="-Xmx2G" dependencytrack/bundled:latest'
+            sleep 60  // Wait for server startup
+          } else {
+            echo "Dependency-Track server already running."
+          }
+        }
+      }
+    }
+
+    stage('Upload SBOM to Dependency-Track') {
+      steps {
+        sh """
+          curl -X POST http://167.86.125.122:1339/api/v1/bom \\
+          -H 'X-API-Key: ${DEPTRACK_API_KEY}' \\
+          -H 'Content-Type: application/json' \\
+          --data-binary @sbom.json
+        """
+      }
+    }
+
+    stage('Collect Docker Images and Run Snyk') {
+      environment {
+        SNYK_TOKEN = credentials('snyk-token-id')
+      }
+      steps {
+        script {
+          // Extract base Docker images referenced in Dockerfiles
+          def images = sh(script: "grep -r '^FROM ' --include Dockerfile* . | awk '{print \$2}' | sort | uniq", returnStdout: true).trim()
+
+          if (images) {
+            echo "Docker base images found:\n${images}"
+
+            // Authenticate Snyk CLI
+            sh "snyk auth ${SNYK_TOKEN}"
+
+            // Run general Snyk scans on all projects
+            sh "snyk test --all-projects"
+            sh "snyk monitor --all-projects"
+
+            // Scan each Docker image found
+            def imagesList = images.split('\\n')
+            for (img in imagesList) {
+              echo "Running Snyk container scan on image: ${img}"
+              try {
+                sh "snyk container test ${img}"
+                sh "snyk container monitor ${img}"
+              } catch (err) {
+                echo "Warning: Scan failed for image ${img} - ${err}"
+              }
+            }
+          } else {
+            echo "No Docker images found in Dockerfiles."
+          }
+        }
+      }
+    }
 
     stage('Build DVWA') {
       steps {
