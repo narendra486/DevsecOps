@@ -1,6 +1,10 @@
 pipeline {
   agent any
 
+  environment {
+    // Assume SonarQube token and server configured globally, no need to redeclare here
+  }
+
   stages {
     stage('Start SonarQube') {
       steps {
@@ -14,7 +18,6 @@ pipeline {
           } else {
             echo "SonarQube container already running."
           }
-          // Check SonarQube health
           def retries = 10
           def healthy = false
           for (int i = 1; i <= retries; i++) {
@@ -37,7 +40,25 @@ pipeline {
     stage('Checkout') {
       steps {
         echo "✅ Checking out repository"
-        sh 'ls -la'
+        checkout scm
+      }
+    }
+
+    stage('SonarQube Scan') {
+      steps {
+        echo "🔍 Running SonarQube scan..."
+        withSonarQubeEnv('SonarQube Server') {
+          sh 'sonar-scanner -Dsonar.projectKey=myProjectKey -Dsonar.sources=./ -Dsonar.host.url=http://167.86.125.122:1338'
+        }
+      }
+    }
+
+    stage('Quality Gate') {
+      steps {
+        echo "⏳ Waiting for SonarQube Quality Gate result..."
+        timeout(time: 5, unit: 'MINUTES') {
+          waitForQualityGate abortPipeline: true
+        }
       }
     }
 
@@ -61,7 +82,7 @@ pipeline {
       steps {
         echo "⌛ Waiting for DVWA to become ready..."
         script {
-          sleep 60 // Wait 1 minute before first check
+          sleep 60
           def code = sh(script: "curl -L -o /dev/null -s -w '%{http_code}' http://167.86.125.122:1337", returnStdout: true).trim()
           echo "HTTP code after 1 minute: ${code}"
           if (code == '200' || code == '302') {
@@ -78,14 +99,6 @@ pipeline {
         echo "🧪 Running DAST scan (placeholder)..."
         // Add actual DAST scanning commands here
       }
-    }
-  }
-
-  post {
-    always {
-      echo "🧹 Cleaning up containers"
-      sh "docker stop dvwa_test_instance || true && docker rm dvwa_test_instance || true"
-      cleanWs()
     }
   }
 }
