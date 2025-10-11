@@ -56,11 +56,22 @@ pipeline {
     stage('Quality Gate') {
       steps {
         echo "⏳ Waiting for SonarQube Quality Gate result..."
-        timeout(time: 5, unit: 'MINUTES') {
+        timeout(time: 10, unit: 'MINUTES') {
           waitForQualityGate abortPipeline: true
         }
       }
     }
+
+    stage('Semgrep SAST Scan') {
+      steps {
+        echo "🔍 Running Semgrep SAST scan..."
+        sh '''
+          semgrep --config=auto --json --output=semgrep-results.json .
+        '''
+        archiveArtifacts artifacts: 'semgrep-results.json', fingerprint: true
+      }
+    }
+
 
     stage('Build DVWA') {
       steps {
@@ -75,29 +86,6 @@ pipeline {
             sh 'docker run -d --name dvwa_test_instance -p 1337:80 vulnerables/web-dvwa'
           }
         }
-      }
-    }
-
-    stage('Wait for DVWA Startup') {
-      steps {
-        echo "⌛ Waiting for DVWA to become ready..."
-        script {
-          sleep 60
-          def code = sh(script: "curl -L -o /dev/null -s -w '%{http_code}' http://167.86.125.122:1337", returnStdout: true).trim()
-          echo "HTTP code after 1 minute: ${code}"
-          if (code == '200' || code == '302') {
-            echo "DVWA is up (HTTP ${code})"
-          } else {
-            echo "Warning: DVWA is not reachable after 1 minute (HTTP ${code}). Pipeline will continue."
-          }
-        }
-      }
-    }
-
-    stage('DAST Scan') {
-      steps {
-        echo "🧪 Running DAST scan (placeholder)..."
-        // Add actual DAST scanning commands here
       }
     }
   }
