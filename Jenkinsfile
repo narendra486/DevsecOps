@@ -18,7 +18,7 @@ pipeline {
           def retries = 10
           def healthy = false
           for (int i = 1; i <= retries; i++) {
-            def code = sh(script: "curl -L -o /dev/null -s -w '%{http_code}' http://localhost:1338", returnStdout: true).trim()
+            def code = sh(script: "curl -L -o /dev/null -s -w '%{http_code}' http://167.86.125.122:1338", returnStdout: true).trim()
             echo "SonarQube HTTP code attempt ${i}: ${code}"
             if (code == '200') {
               healthy = true
@@ -33,6 +33,7 @@ pipeline {
         }
       }
     }
+
     stage('Checkout') {
       steps {
         echo "✅ Checking out repository"
@@ -75,6 +76,7 @@ pipeline {
     stage('DAST Scan') {
       steps {
         echo "🧪 Running DAST scan (placeholder)..."
+        // Add actual DAST scanning commands here
       }
     }
   }
