@@ -57,8 +57,39 @@ pipeline {
     stage('Quality Gate') {
       steps {
         echo "⏳ Waiting for SonarQube Quality Gate result..."
-        timeout(time: 10, unit: 'MINUTES') {
-          waitForQualityGate abortPipeline: true
+        script {
+          def timeoutMinutes = 10
+          def pollInterval = 60 * 1000 // 1 minute in ms
+          def startTime = System.currentTimeMillis()
+
+          def response = sh(script: "curl -s ${SONAR_HOST_URL}/api/project_analyses/search?project=myProjectKey", returnStdout: true).trim()
+          def jsonResp = readJSON text: response
+          def taskId = jsonResp.analyses[0].taskId
+
+          echo "Polling SonarQube task ID: ${taskId} every minute for quality gate result..."
+
+          while (true) {
+            def taskResp = sh(script: "curl -s ${SONAR_HOST_URL}/api/ce/task?id=${taskId}", returnStdout: true).trim()
+            def taskJson = readJSON text: taskResp
+            def status = taskJson.task.status
+
+            echo "SonarQube analysis status: ${status}"
+
+            if (status == 'SUCCESS' || status == 'FAILED' || status == 'CANCELED') {
+              if (status == 'SUCCESS') {
+                echo "Quality Gate passed!"
+              } else {
+                error "Quality Gate failed or canceled with status: ${status}"
+              }
+              break
+            }
+
+            if ((System.currentTimeMillis() - startTime) > timeoutMinutes * 60 * 1000) {
+              error "Timeout waiting for quality gate result"
+            }
+
+            sleep pollInterval / 1000
+          }
         }
       }
     }
@@ -89,20 +120,17 @@ pipeline {
       }
       steps {
         script {
-          // Extract base Docker images referenced in Dockerfiles
           def images = sh(script: "grep -r '^FROM ' --include Dockerfile* . | awk '{print \$2}' | sort | uniq", returnStdout: true).trim()
+
 
           if (images) {
             echo "Docker base images found:\n${images}"
 
-            // Authenticate Snyk CLI
             sh "snyk auth ${SNYK_TOKEN}"
 
-            // Run general Snyk scans on all projects
             sh "snyk test --all-projects"
             sh "snyk monitor --all-projects"
 
-            // Scan each Docker image found
             def imagesList = images.split('\\n')
             for (img in imagesList) {
               echo "Running Snyk container scan on image: ${img}"
