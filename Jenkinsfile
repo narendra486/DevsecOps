@@ -134,11 +134,13 @@ pipeline {
     stage('OWASP Dependency-Check') {
       steps {
         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-          def dcHome = tool name: 'Dependency-Check', type: 'DependencyCheckInstallation'
-          sh """
-            ${dcHome}/bin/dependency-check.sh --version
-            ${dcHome}/bin/dependency-check.sh --project MyProjectName --scan . --format HTML --out dependency-check-report
-          """
+          script {
+            def dcHome = tool name: 'Dependency-Check', type: 'DependencyCheckInstallation'
+            sh """
+              ${dcHome}/bin/dependency-check.sh --version
+              ${dcHome}/bin/dependency-check.sh --project MyProjectName --scan . --format HTML --out dependency-check-report
+            """
+          }
           archiveArtifacts artifacts: 'dependency-check-report/*.html'
         }
       }
