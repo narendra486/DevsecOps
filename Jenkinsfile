@@ -134,10 +134,11 @@ pipeline {
     stage('OWASP Dependency-Check') {
       steps {
         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-          echo "🔍 Running OWASP Dependency-Check SCA scan..."
-          sh '''
-            dependency-check.sh --project MyProjectName --scan . --format HTML --out dependency-check-report
-          '''
+          def dcHome = tool name: 'Dependency-Check', type: 'DependencyCheckInstallation'
+          sh """
+            ${dcHome}/bin/dependency-check.sh --version
+            ${dcHome}/bin/dependency-check.sh --project MyProjectName --scan . --format HTML --out dependency-check-report
+          """
           archiveArtifacts artifacts: 'dependency-check-report/*.html'
         }
       }
@@ -150,18 +151,19 @@ pipeline {
       steps {
         catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
           script {
+            def snykHome = tool name: 'Snyk', type: 'SnykInstallation'
             def images = sh(script: "grep -r '^FROM ' --include Dockerfile* . | awk '{print \$2}' | sort | uniq", returnStdout: true).trim()
             if (images) {
               echo "Docker base images found:\n${images}"
-              sh "snyk auth ${SNYK_TOKEN}"
-              sh "snyk test --all-projects"
-              sh "snyk monitor --all-projects"
+              sh "${snykHome}/bin/snyk auth ${SNYK_TOKEN}"
+              sh "${snykHome}/bin/snyk test --all-projects"
+              sh "${snykHome}/bin/snyk monitor --all-projects"
               def imagesList = images.split('\\n')
               for (img in imagesList) {
                 echo "Running Snyk container test on image: ${img}"
                 try {
-                  sh "snyk container test ${img}"
-                  sh "snyk container monitor ${img}"
+                  sh "${snykHome}/bin/snyk container test ${img}"
+                  sh "${snykHome}/bin/snyk container monitor ${img}"
                 } catch (err) {
                   echo "Warning: Scan failed for image ${img} - ${err}"
                 }
