@@ -59,20 +59,42 @@ pipeline {
         echo "⏳ Waiting for SonarQube Quality Gate result..."
         script {
           def timeoutMinutes = 10
-          def pollInterval = 60 * 1000 // 1 minute in ms
+          def pollInterval = 60 * 1000 // 1 minute
           def startTime = System.currentTimeMillis()
 
+          // Get the latest analysis task ID
           def response = sh(script: "curl -s ${SONAR_HOST_URL}/api/project_analyses/search?project=myProjectKey", returnStdout: true).trim()
-          def jsonResp = readJSON text: response
-          def taskId = jsonResp.analyses[0].taskId
-
+          echo "SonarQube analysis search response: ${response}"
+          if (!response?.trim()) {
+            error "Empty response from SonarQube when searching analyses; cannot proceed."
+          }
+          
+          def jsonResp = null
+          try {
+            jsonResp = readJSON text: response
+          } catch (Exception e) {
+            error "Failed to parse JSON from SonarQube analysis search: ${e.message}"
+          }
+          def taskId = jsonResp.analyses?.getAt(0)?.taskId
+          if (!taskId) {
+            error "Could not find analysis taskId in SonarQube response."
+          }
           echo "Polling SonarQube task ID: ${taskId} every minute for quality gate result..."
 
           while (true) {
             def taskResp = sh(script: "curl -s ${SONAR_HOST_URL}/api/ce/task?id=${taskId}", returnStdout: true).trim()
-            def taskJson = readJSON text: taskResp
-            def status = taskJson.task.status
+            echo "SonarQube task status response: ${taskResp}"
+            if (!taskResp?.trim()) {
+              error "Empty response when polling task status."
+            }
 
+            def taskJson = null
+            try {
+              taskJson = readJSON text: taskResp
+            } catch (Exception e) {
+              error "Failed to parse JSON from task status: ${e.message}"
+            }
+            def status = taskJson.task?.status
             echo "SonarQube analysis status: ${status}"
 
             if (status == 'SUCCESS' || status == 'FAILED' || status == 'CANCELED') {
@@ -84,6 +106,7 @@ pipeline {
               break
             }
 
+            // Timeout after 10 minutes
             if ((System.currentTimeMillis() - startTime) > timeoutMinutes * 60 * 1000) {
               error "Timeout waiting for quality gate result"
             }
@@ -121,19 +144,14 @@ pipeline {
       steps {
         script {
           def images = sh(script: "grep -r '^FROM ' --include Dockerfile* . | awk '{print \$2}' | sort | uniq", returnStdout: true).trim()
-
-
           if (images) {
             echo "Docker base images found:\n${images}"
-
             sh "snyk auth ${SNYK_TOKEN}"
-
             sh "snyk test --all-projects"
             sh "snyk monitor --all-projects"
-
             def imagesList = images.split('\\n')
             for (img in imagesList) {
-              echo "Running Snyk container scan on image: ${img}"
+              echo "Running Snyk container test on image: ${img}"
               try {
                 sh "snyk container test ${img}"
                 sh "snyk container monitor ${img}"
