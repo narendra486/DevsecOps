@@ -84,31 +84,6 @@ pipeline {
       }
     }
 
-    stage('Start Dependency-Track') {
-      steps {
-        script {
-          def running = sh(script: "docker ps --format '{{.Names}}' | grep -w dependency-track || true", returnStdout: true).trim()
-          if (!running) {
-            sh 'docker run -d --name dependency-track -p 1339:8080 -e JAVA_OPTS="-Xmx2G" dependencytrack/bundled:latest'
-            sleep 60  // Wait for server startup
-          } else {
-            echo "Dependency-Track server already running."
-          }
-        }
-      }
-    }
-
-    stage('Upload SBOM to Dependency-Track') {
-      steps {
-        sh """
-          curl -X POST http://167.86.125.122:1339/api/v1/bom \\
-          -H 'X-API-Key: ${DEPTRACK_API_KEY}' \\
-          -H 'Content-Type: application/json' \\
-          --data-binary @sbom.json
-        """
-      }
-    }
-
     stage('Collect Docker Images and Run Snyk') {
       environment {
         SNYK_TOKEN = credentials('snyk-token-id')
