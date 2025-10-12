@@ -47,71 +47,73 @@ pipeline {
 
     stage('SonarQube Scan') {
       steps {
-        echo "🔍 Running SonarQube scan..."
-        withSonarQubeEnv('SonarQube Server') {
-          sh "sonar-scanner -Dsonar.projectKey=myProjectKey -Dsonar.sources=./ -Dsonar.host.url=${SONAR_HOST_URL}"
+        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+          echo "🔍 Running SonarQube scan..."
+          withSonarQubeEnv('SonarQube Server') {
+            sh "sonar-scanner -Dsonar.projectKey=myProjectKey -Dsonar.sources=./ -Dsonar.host.url=${SONAR_HOST_URL}"
+          }
         }
       }
     }
 
     stage('Quality Gate') {
       steps {
-        echo "⏳ Waiting for SonarQube Quality Gate result..."
-        script {
-          def timeoutMinutes = 10
-          def pollInterval = 60 * 1000 // 1 minute
-          def startTime = System.currentTimeMillis()
+        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+          echo "⏳ Waiting for SonarQube Quality Gate result..."
+          script {
+            def timeoutMinutes = 10
+            def pollInterval = 60 * 1000 // 1 minute
+            def startTime = System.currentTimeMillis()
 
-          // Get the latest analysis task ID
-          def response = sh(script: "curl -s ${SONAR_HOST_URL}/api/project_analyses/search?project=myProjectKey", returnStdout: true).trim()
-          echo "SonarQube analysis search response: ${response}"
-          if (!response?.trim()) {
-            error "Empty response from SonarQube when searching analyses; cannot proceed."
-          }
-          
-          def jsonResp = null
-          try {
-            jsonResp = readJSON text: response
-          } catch (Exception e) {
-            error "Failed to parse JSON from SonarQube analysis search: ${e.message}"
-          }
-          def taskId = jsonResp.analyses?.getAt(0)?.taskId
-          if (!taskId) {
-            error "Could not find analysis taskId in SonarQube response."
-          }
-          echo "Polling SonarQube task ID: ${taskId} every minute for quality gate result..."
-
-          while (true) {
-            def taskResp = sh(script: "curl -s ${SONAR_HOST_URL}/api/ce/task?id=${taskId}", returnStdout: true).trim()
-            echo "SonarQube task status response: ${taskResp}"
-            if (!taskResp?.trim()) {
-              error "Empty response when polling task status."
+            def response = sh(script: "curl -s ${SONAR_HOST_URL}/api/project_analyses/search?project=myProjectKey", returnStdout: true).trim()
+            echo "SonarQube analysis search response: ${response}"
+            if (!response?.trim()) {
+              error "Empty response from SonarQube when searching analyses; cannot proceed."
             }
 
-            def taskJson = null
+            def jsonResp = null
             try {
-              taskJson = readJSON text: taskResp
+              jsonResp = readJSON text: response
             } catch (Exception e) {
-              error "Failed to parse JSON from task status: ${e.message}"
+              error "Failed to parse JSON from SonarQube analysis search: ${e.message}"
             }
-            def status = taskJson.task?.status
-            echo "SonarQube analysis status: ${status}"
+            def taskId = jsonResp.analyses?.getAt(0)?.taskId
+            if (!taskId) {
+              error "Could not find analysis taskId in SonarQube response."
+            }
+            echo "Polling SonarQube task ID: ${taskId} every minute for quality gate result..."
 
-            if (status == 'SUCCESS' || status == 'FAILED' || status == 'CANCELED') {
-              if (status == 'SUCCESS') {
-                echo "Quality Gate passed!"
-              } else {
-                error "Quality Gate failed or canceled with status: ${status}"
+            while (true) {
+              def taskResp = sh(script: "curl -s ${SONAR_HOST_URL}/api/ce/task?id=${taskId}", returnStdout: true).trim()
+              echo "SonarQube task status response: ${taskResp}"
+              if (!taskResp?.trim()) {
+                error "Empty response when polling task status."
               }
-              break
-            }
 
-            // Timeout after 10 minutes
-            if ((System.currentTimeMillis() - startTime) > timeoutMinutes * 60 * 1000) {
-              error "Timeout waiting for quality gate result"
-            }
+              def taskJson = null
+              try {
+                taskJson = readJSON text: taskResp
+              } catch (Exception e) {
+                error "Failed to parse JSON from task status: ${e.message}"
+              }
+              def status = taskJson.task?.status
+              echo "SonarQube analysis status: ${status}"
 
-            sleep pollInterval / 1000
+              if (status == 'SUCCESS' || status == 'FAILED' || status == 'CANCELED') {
+                if (status == 'SUCCESS') {
+                  echo "Quality Gate passed!"
+                } else {
+                  error "Quality Gate failed or canceled with status: ${status}"
+                }
+                break
+              }
+
+              if ((System.currentTimeMillis() - startTime) > timeoutMinutes * 60 * 1000) {
+                error "Timeout waiting for quality gate result"
+              }
+
+              sleep pollInterval / 1000
+            }
           }
         }
       }
@@ -119,21 +121,25 @@ pipeline {
 
     stage('Semgrep SAST Scan') {
       steps {
-        echo "🔍 Running Semgrep SAST scan..."
-        sh '''
-          semgrep --config=auto --json --output=semgrep-results.json .
-        '''
-        archiveArtifacts artifacts: 'semgrep-results.json', fingerprint: true
+        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+          echo "🔍 Running Semgrep SAST scan..."
+          sh '''
+            semgrep --config=auto --json --output=semgrep-results.json .
+          '''
+          archiveArtifacts artifacts: 'semgrep-results.json', fingerprint: true
+        }
       }
     }
 
     stage('OWASP Dependency-Check') {
       steps {
-        echo "🔍 Running OWASP Dependency-Check SCA scan..."
-        sh '''
-          dependency-check.sh --project MyProjectName --scan . --format HTML --out dependency-check-report
-        '''
-        archiveArtifacts artifacts: 'dependency-check-report/*.html'
+        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+          echo "🔍 Running OWASP Dependency-Check SCA scan..."
+          sh '''
+            dependency-check.sh --project MyProjectName --scan . --format HTML --out dependency-check-report
+          '''
+          archiveArtifacts artifacts: 'dependency-check-report/*.html'
+        }
       }
     }
 
@@ -142,25 +148,27 @@ pipeline {
         SNYK_TOKEN = credentials('snyk-token-id')
       }
       steps {
-        script {
-          def images = sh(script: "grep -r '^FROM ' --include Dockerfile* . | awk '{print \$2}' | sort | uniq", returnStdout: true).trim()
-          if (images) {
-            echo "Docker base images found:\n${images}"
-            sh "snyk auth ${SNYK_TOKEN}"
-            sh "snyk test --all-projects"
-            sh "snyk monitor --all-projects"
-            def imagesList = images.split('\\n')
-            for (img in imagesList) {
-              echo "Running Snyk container test on image: ${img}"
-              try {
-                sh "snyk container test ${img}"
-                sh "snyk container monitor ${img}"
-              } catch (err) {
-                echo "Warning: Scan failed for image ${img} - ${err}"
+        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+          script {
+            def images = sh(script: "grep -r '^FROM ' --include Dockerfile* . | awk '{print \$2}' | sort | uniq", returnStdout: true).trim()
+            if (images) {
+              echo "Docker base images found:\n${images}"
+              sh "snyk auth ${SNYK_TOKEN}"
+              sh "snyk test --all-projects"
+              sh "snyk monitor --all-projects"
+              def imagesList = images.split('\\n')
+              for (img in imagesList) {
+                echo "Running Snyk container test on image: ${img}"
+                try {
+                  sh "snyk container test ${img}"
+                  sh "snyk container monitor ${img}"
+                } catch (err) {
+                  echo "Warning: Scan failed for image ${img} - ${err}"
+                }
               }
+            } else {
+              echo "No Docker images found in Dockerfiles."
             }
-          } else {
-            echo "No Docker images found in Dockerfiles."
           }
         }
       }
@@ -168,15 +176,17 @@ pipeline {
 
     stage('Build DVWA') {
       steps {
-        echo "🚀 Starting DVWA container"
-        script {
-          def running = sh(script: "docker ps --format '{{.Names}}' | grep -w dvwa_test_instance || true", returnStdout: true).trim()
-          if (running) {
-            echo "DVWA container is already running."
-          } else {
-            echo "DVWA container not running. Attempting to start..."
-            sh 'docker rm dvwa_test_instance || true'
-            sh 'docker run -d --name dvwa_test_instance -p 1337:80 vulnerables/web-dvwa'
+        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+          echo "🚀 Starting DVWA container"
+          script {
+            def running = sh(script: "docker ps --format '{{.Names}}' | grep -w dvwa_test_instance || true", returnStdout: true).trim()
+            if (running) {
+              echo "DVWA container is already running."
+            } else {
+              echo "DVWA container not running. Attempting to start..."
+              sh 'docker rm dvwa_test_instance || true'
+              sh 'docker run -d --name dvwa_test_instance -p 1337:80 vulnerables/web-dvwa'
+            }
           }
         }
       }
