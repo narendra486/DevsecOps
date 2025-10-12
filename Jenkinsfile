@@ -4,7 +4,6 @@ pipeline {
   environment {
     SONAR_HOST_URL = "http://167.86.125.122:1338"
     SNYK_TOKEN = credentials('snyk-token-id')
-    DEPTRACK_API_KEY = credentials('dependencytrack-api-key')
   }
 
   stages {
