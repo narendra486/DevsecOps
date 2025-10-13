@@ -44,7 +44,7 @@ pipeline {
                     snyk iac test --report --json-file-output=snyk-reports/snyk-iac.json || true
 
                     echo "💻 Running Snyk Code (SAST) Scan..."
-                    snyk code test --report --json-file-output=snyk-reports/snyk-code.json || true
+                    snyk code test --project-name="devsecops-dvwa" --report --json-file-output=snyk-reports/snyk-code.json || true
 
                     echo "✅ All Snyk Scans Completed! Reports saved in snyk-reports/"
                 '''
