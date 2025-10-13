@@ -16,7 +16,7 @@ pipeline {
 
     stage('Build && SonarQube analysis') {
       environment {
-        scannerHome = tool 'Sonar-scanner' // must match name in Manage Jenkins > Tools > SonarQube Scanner
+        scannerHome = tool 'sonar-scanner' // must match name in Manage Jenkins > Tools > SonarQube Scanner
       }
       steps {
         withSonarQubeEnv('sonar') { // 'sonar' must match the name of your SonarQube server in Jenkins settings
