@@ -20,7 +20,7 @@ pipeline {
                     mkdir -p dependency-check
                     curl -L -o dependency-check/dependency-check.zip https://github.com/dependency-check/DependencyCheck/releases/download/v12.1.7/dependency-check-12.1.7-release.zip
                     unzip -q -o dependency-check/dependency-check.zip -d dependency-check
-                    chmod +x dependency-check/dependency-check-12.1.7/bin/dependency-check.sh
+                    chmod +x dependency-check/dependency-check/bin/dependency-check.sh
                     mkdir -p dependency-check-data
                     chmod -R 777 dependency-check-data
                 '''
@@ -31,7 +31,7 @@ pipeline {
             steps {
                 echo "🔍 Running Dependency-Check scan..."
                 sh '''
-                    dependency-check/dependency-check-12.1.7/bin/dependency-check.sh \
+                    dependency-check/dependency-check/bin/dependency-check.sh \
                         --project MyProject \
                         --scan . \
                         --format HTML \
