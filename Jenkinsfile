@@ -1,21 +1,32 @@
 pipeline {
     agent any
 
+    environment {
+        SNYK_TOKEN = credentials('snyk-token-id')
+    }
+
     stages {
-        stage('Run Snyk Test') {
-            environment {
-                SNYK_TOKEN = credentials('snyk-token-id')
-            }
+        stage('Install Snyk CLI') {
             steps {
-                script {
-                    def snykHome = tool name: 'Snyk', type: 'SnykInstallation'
-                    
-                    // Authenticate Snyk
-                    sh "${snykHome}/bin/snyk auth ${SNYK_TOKEN}"
-                    
-                    // Run a simple Snyk scan on the repository
-                    sh "${snykHome}/bin/snyk test"
-                }
+                sh '''
+                    echo "⬇️ Installing Snyk CLI..."
+                    curl -sL https://github.com/snyk/cli/releases/latest/download/snyk-linux -o snyk
+                    chmod +x snyk
+                    mv snyk /usr/local/bin/snyk
+                    snyk --version
+                '''
+            }
+        }
+
+        stage('Run Snyk Test') {
+            steps {
+                sh '''
+                    echo "🔐 Authenticating with Snyk..."
+                    snyk auth ${SNYK_TOKEN}
+
+                    echo "🚀 Running Snyk test on current repository..."
+                    snyk test --all-projects
+                '''
             }
         }
     }
