@@ -32,7 +32,7 @@ pipeline {
         stage('Run OWASP Dependency-Check') {
             environment {
                 // Make sure NVD API Key is stored in Jenkins credentials
-                NVD_API_KEY = credentials('nvd-api-key-id')
+                NVD_API_KEY = credentials('nvd-api-key')
             }
             steps {
                 echo "🔍 Running Dependency-Check scan..."
