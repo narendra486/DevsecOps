@@ -16,14 +16,13 @@ pipeline {
         }
 
         stage('Security & Quality Scans') {
-            parallel {
+            stages {
                 stage('SonarQube Analysis') {
                     environment {
                         scannerHome = tool 'sonar-scanner'
                     }
                     steps {
                         script {
-                            // Start SonarQube if not running
                             def running = sh(script: "docker ps --format '{{.Names}}' | grep -w sonarqube || true", returnStdout: true).trim()
                             if (!running) {
                                 sh 'docker compose up -d sonarqube'
@@ -61,7 +60,6 @@ pipeline {
                                 -Dsonar.java.checkstyle.reportPaths=target/checkstyle-result.xml
                             """
                         }
-
                         timeout(time: 20, unit: 'MINUTES') {
                             waitForQualityGate abortPipeline: true
                         }
@@ -84,7 +82,6 @@ pipeline {
                             } else {
                                 echo "✅ Dependency-Check CLI already exists."
                             }
-
                             echo "🔍 Running Dependency-Check scan..."
                             sh '''
                                 mkdir -p dependency-check-report
@@ -97,7 +94,6 @@ pipeline {
                                     --nvdApiKey $NVD_API_KEY \
                                     --prettyPrint
                             '''
-
                             echo "📄 Publishing Dependency-Check reports..."
                             dependencyCheckPublisher pattern: 'dependency-check-report/dependency-check-report.xml'
                         }
