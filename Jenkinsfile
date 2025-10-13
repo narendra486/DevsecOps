@@ -45,6 +45,7 @@ pipeline {
                 echo "🔍 Running Dependency-Check scan..."
                 withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
                     sh '''
+                    mkdir -p dependency-check-report
                     dependency-check/dependency-check/bin/dependency-check.sh \
                         --project "MyProject" \
                         --scan . \
