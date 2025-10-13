@@ -53,7 +53,6 @@ pipeline {
                         --data dependency-check-data \
                         --nvdApiKey $NVD_API_KEY \
                         --prettyPrint \
-                        --disableNvd
                     '''
                 }
             }
