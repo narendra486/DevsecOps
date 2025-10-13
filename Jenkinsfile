@@ -46,10 +46,10 @@ pipeline {
 
     stage('Build && SonarQube analysis') {
       environment {
-        scannerHome = tool 'sonar-scanner' // Must match Manage Jenkins > Tools > SonarQube Scanner name
+        scannerHome = tool 'sonar-scanner' // must match Manage Jenkins > Tools > SonarQube Scanner name
       }
       steps {
-        withSonarQubeEnv('sonar') { // Must match configured SonarQube server name
+        withSonarQubeEnv('SonarQube Server') {  // replace with your SonarQube server name exactly
           sh """${scannerHome}/bin/sonar-scanner \
             -Dsonar.projectKey=vprofile \
             -Dsonar.projectName=vprofile-repo \
@@ -73,6 +73,5 @@ pipeline {
     }
 
     // Add other stages as needed
-
   }
 }
