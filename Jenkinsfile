@@ -18,15 +18,25 @@ pipeline {
             }
         }
 
-        stage('Run Snyk Test') {
+        stage('Run Snyk Test & Monitor') {
             steps {
                 sh '''
                     echo "🔐 Authenticating with Snyk..."
                     snyk auth ${SNYK_TOKEN}
 
                     echo "🚀 Running Snyk test on current repository..."
-                    snyk test --all-projects
+                    snyk test --all-projects --json > snyk-report.json
+
+                    echo "☁️ Uploading results to Snyk Cloud Dashboard..."
+                    snyk monitor --all-projects
                 '''
+            }
+        }
+
+        stage('Archive Report') {
+            steps {
+                archiveArtifacts artifacts: 'snyk-report.json', onlyIfSuccessful: true
+                echo "📄 Snyk JSON report archived in Jenkins artifacts."
             }
         }
     }
