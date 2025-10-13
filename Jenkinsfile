@@ -4,10 +4,10 @@ pipeline {
     environment {
         DC_VERSION = "12.1.7"
         DC_HOME = "${WORKSPACE}/dependency-check"
+        NVD_API_KEY = credentials('nvd-api-key') // <-- your credential ID
     }
 
     stages {
-
         stage('Install Dependency-Check') {
             steps {
                 echo "📥 Downloading Dependency-Check CLI ${DC_VERSION}..."
@@ -27,11 +27,12 @@ pipeline {
                       --project MyProject \
                       --scan . \
                       --format HTML \
-                      --out dependency-check-report
+                      --out dependency-check-report \
+                      --nvdApiKey ${NVD_API_KEY} \
+                      --data ${WORKSPACE}/dependency-check-data
                 """
                 archiveArtifacts artifacts: 'dependency-check-report/*.html', fingerprint: true
             }
         }
-
-    } // end stages
-} // end pipeline
+    }
+}
