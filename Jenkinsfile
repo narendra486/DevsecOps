@@ -62,7 +62,7 @@ pipeline {
                             """
                         }
 
-                        timeout(time: 10, unit: 'MINUTES') {
+                        timeout(time: 20, unit: 'MINUTES') {
                             waitForQualityGate abortPipeline: true
                         }
                     }
