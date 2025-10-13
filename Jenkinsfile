@@ -1,27 +1,36 @@
 pipeline {
-  agent any
+    agent any
 
-  stages {
-    stage('Checkout') {
-      steps {
-        echo "✅ Checking out code"
-        checkout scm
-      }
+    environment {
+        DC_VERSION = "12.1.7"
+        DC_HOME = "${WORKSPACE}/dependency-check-${DC_VERSION}"
     }
 
-    stage('OWASP Dependency-Check') {
-      steps {
-        catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-          script {
-            def dcHome = tool name: 'Dependency-Check', type: 'DependencyCheckInstallation'
-            sh """
-              ${dcHome}/bin/dependency-check.sh --version
-              ${dcHome}/bin/dependency-check.sh --project MyProjectName --scan . --format HTML --out dependency-check-report
-            """
-          }
-          archiveArtifacts artifacts: 'dependency-check-report/*.html'
+    stages {
+        stage('Install Dependency-Check') {
+            steps {
+                echo "📥 Downloading Dependency-Check CLI ${DC_VERSION}..."
+                sh """
+                    curl -L -o dependency-check.zip https://github.com/dependency-check/DependencyCheck/releases/download/v${DC_VERSION}/dependency-check-${DC_VERSION}-release.zip
+                    unzip -q -o dependency-check.zip
+                    chmod +x ${DC_HOME}/bin/dependency-check.sh
+                """
+            }
         }
-      }
+
+        stage('Run OWASP Dependency-Check') {
+            steps {
+                echo "🔍 Running Dependency-Check scan..."
+                sh """
+                    ${DC_HOME}/bin/dependency-check.sh \
+                      --project MyProject \
+                      --scan . \
+                      --format HTML \
+                      --out dependency-check-report \
+                      --enableExperimental
+                """
+                archiveArtifacts artifacts: 'dependency-check-report/*.html', fingerprint: true
+            }
+        }
     }
-  }
 }
