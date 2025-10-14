@@ -38,7 +38,7 @@ pipeline {
                 // Optional: Quality gate waiting only if report-task.txt exists
                 script {
                     if (fileExists('.scannerwork/report-task.txt')) {
-                        timeout(time: 10, unit: 'MINUTES') {
+                        timeout(time: 60, unit: 'MINUTES') {
                             waitForQualityGate abortPipeline: true
                         }
                     } else {
