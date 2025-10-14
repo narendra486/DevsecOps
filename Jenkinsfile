@@ -4,14 +4,14 @@ pipeline {
     environment {
         SONAR_HOST_URL = "http://167.86.125.122:1338"
         GITHUB_API_URL = "https://api.github.com"
-        // Add your GitHub token credential ID here
+        // Your GitHub personal access token credential ID configured in Jenkins
         GITHUB_CREDENTIALS_ID = 'github-token'
     }
 
     stages {
         stage('SonarQube Analysis - Fixed') {
             environment {
-                scannerHome = tool 'sonar-scanner'
+                scannerHome = tool 'sonar-scanner'  // Use your configured SonarScanner tool name
             }
             steps {
                 script {
@@ -47,7 +47,7 @@ pipeline {
                             }
 
                             // Notify GitHub about quality gate status
-                            def commitSha = env.GIT_COMMIT ?: env.CHANGE_TARGET // commit SHA to report status to
+                            def commitSha = env.GIT_COMMIT ?: env.CHANGE_TARGET
                             def githubApi = "${env.GITHUB_API_URL}/repos/${env.GITHUB_REPOSITORY}/statuses/${commitSha}"
                             def githubToken = credentials(env.GITHUB_CREDENTIALS_ID)
 
@@ -63,8 +63,8 @@ pipeline {
                                 ]).toString()
 
                                 sh """
-                                curl -s -X POST -H "Authorization: token ${githubToken}" -H "Content-Type: application/json" \
-                                -d '${payload}' \
+                                curl -s -X POST -H "Authorization: token ${githubToken}" -H "Content-Type: application/json" \\
+                                -d '${payload}' \\
                                 ${githubApi}
                                 """
                                 echo "✅ GitHub status updated: ${state}"
@@ -77,10 +77,19 @@ pipeline {
                             }
                         }
                     } else {
-                        echo "⚠️ Skipping quality gate: report-task.txt not found"
+                        error("⚠️ report-task.txt not found - skipping quality gate wait and failing the build")
                     }
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline completed successfully with passing Quality Gate."
+        }
+        failure {
+            echo "❌ Pipeline failed due to Quality Gate failure or SonarQube scan issues."
         }
     }
 }
