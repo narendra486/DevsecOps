@@ -1,0 +1,95 @@
+pipeline {
+    agent any
+
+    environment {
+        DVWA_TARGET_URL = 'http://167.86.125.122:1337'  // Use your public IP
+        DVWA_CONTAINER_NAME = 'dvwa_test_instance'
+        GIT_REPO = 'git@github.com:narendra486/DevsecOps.git'
+        GIT_BRANCH = 'master'
+        GIT_CREDENTIALS_ID = 'github-ssh'
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                echo 'Pulling latest code from GitHub...'
+                cleanWs()
+                retry(2) {
+                    git url: "${GIT_REPO}",
+                        branch: "${GIT_BRANCH}",
+                        credentialsId: "${GIT_CREDENTIALS_ID}"
+                }
+            }
+        }
+
+        stage('Build and Deploy to Test/Staging') {
+            steps {
+                echo 'Stopping old DVWA container if exists...'
+                sh "docker stop ${DVWA_CONTAINER_NAME} || true"
+                sh "docker rm ${DVWA_CONTAINER_NAME} || true"
+
+                echo 'Starting new DVWA container with health check...'
+                sh """
+                docker run -d --name ${DVWA_CONTAINER_NAME} \
+                  --health-cmd="curl -s -f http://127.0.0.1/ || exit 1" \
+                  --health-interval=5s \
+                  --health-retries=12 \
+                  -p 1337:80 vulnerables/web-dvwa
+                """
+
+                echo 'Waiting for container to become healthy...'
+                script {
+                    def retries = 12
+                    def wait = 5
+                    def status = 'unhealthy'
+
+                    for (int i = 1; i <= retries; i++) {
+                        status = sh(
+                            script: "docker inspect --format='{{.State.Health.Status}}' ${DVWA_CONTAINER_NAME}",
+                            returnStdout: true
+                        ).trim()
+                        echo "Attempt ${i}: Container health status = ${status}"
+                        if (status == 'healthy') {
+                            echo "Container is healthy!"
+                            break
+                        }
+                        sleep(wait)
+                    }
+
+                    echo 'Verifying application is reachable over network...'
+                    def httpStatus = '000'
+                    for (int i = 1; i <= retries; i++) {
+                        httpStatus = sh(
+                            script: "curl -L -o /dev/null -s -w '%{http_code}' ${DVWA_TARGET_URL}",
+                            returnStdout: true
+                        ).trim()
+                        echo "HTTP status attempt ${i}: ${httpStatus}"
+                        if (httpStatus in ['200','302']) {
+                            echo "Application is reachable!"
+                            break
+                        }
+                        sleep(wait)
+                    }
+
+                    if (!['200','302'].contains(httpStatus)) {
+                        echo "Warning: Application not reachable after retries, but pipeline will continue."
+                    }
+                }
+            }
+        }
+
+        stage('DAST Scan') {
+            steps {
+                echo "Running DAST Scan placeholder for ${DVWA_TARGET_URL}..."
+                // Insert your DAST commands here
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Cleaning workspace...'
+            cleanWs()
+        }
+    }
+}
