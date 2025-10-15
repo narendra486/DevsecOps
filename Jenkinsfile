@@ -40,7 +40,7 @@ pipeline {
 
                 script {
                     if (fileExists('.scannerwork/report-task.txt')) {
-                        timeout(time: 60, unit: 'MINUTES') {
+                        timeout(time: 30, unit: 'MINUTES') {
                             def qualityGate = waitForQualityGate(abortPipeline: false)
                             if (qualityGate.status != 'OK') {
                                 currentBuild.result = 'FAILURE'
